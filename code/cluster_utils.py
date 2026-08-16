@@ -24,7 +24,8 @@ def pairwise_ari(clustering_logits):
             
 # fucntion to measure cluster stability 
 def crossval_cluster_stability(data, opt, covariate_correct=False, brain_measures_list=[], covariates_list=[], M_list=[2]):
-    kf=sklearn.model_selection.KFold(n_splits=10, shuffle=True, random_state=42)
+    #kf=sklearn.model_selection.KFold(n_splits=10, shuffle=True, random_state=42) # if using K-fold
+    kf = sklearn.model_selection.ShuffleSplit(n_splits=10, train_size=0.8, random_state=42) 
     clustering = [] # predicted logits , list of lists, each list is 10-CV results for selected M
     # get train  and cross validation data
     if covariate_correct:
@@ -74,14 +75,14 @@ def crossval_cluster_stability(data, opt, covariate_correct=False, brain_measure
             # define model and start training
             converged=False
             counter=0
-            while not converged:
+            while not converged: 
                 model = CASLVAE()
                 model.create(opt=opt)
                 model.set_preprocessing_params(params)
                 model, cluster_logits, loss_list, converged = train_model(model, opt, train_loader, train_data_y, train_data_x, cv_data_y, cv_data_x, verbose=False)
                 print('Training has converged:', converged)
                 counter+=1
-                if counter==1:
+                if counter==1:## if not converged in 1 trial, break and save the logits anyway
                   break
             print('Number of training trials:', counter)
             clusteringM.append(cluster_logits[0].squeeze())
