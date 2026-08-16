@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 
 
 
-def train_model(model, opt, train_loader, train_data_ref, train_data_pt, cv_data_ref, cv_data_pt, verbose=True):
+def train_model(model, opt, train_loader, train_data_ref, train_data_pt, cv_data_ref, cv_data_pt, verbose=True, wdist_monitor=False):
             # initialize variables to store losses
             clusteringM=[]
             kl_z_loss = []
@@ -133,13 +133,13 @@ def train_model(model, opt, train_loader, train_data_ref, train_data_pt, cv_data
                     synth_hc = model.G_forward.decode_common(z_synth[:400]) +  model.G_forward.decode_salient(scat_preset_synth, scont_preset_synth)
                     synth_pt = model.G_forward.decode_common(z_synth[400:]) +  model.G_forward.decode_salient(scat_synth, scont_synth+mu_sprior_synth)
 
-
-                    w_list_hc.append(eval_w_distances(train_data_ref, output['y_recon'], independent=False))
-                    w_list_eva_hc.append(eval_w_distances(cv_data_ref, output_eva['y_recon'],  independent=False))
-                    w_list_pt.append(eval_w_distances(train_data_pt, output['x_recon'], independent=False))
-                    w_list_eva_pt.append(eval_w_distances(cv_data_pt, output_eva['x_recon'],  independent=False))
-                    w_list_pair.append(eval_w_distances(train_data_ref, train_data_pt, independent=False))
-                    w_list_eva_pair.append(eval_w_distances(synth_hc, synth_pt, independent=False))
+                    if wdist_monitor:
+                        w_list_hc.append(eval_w_distances(train_data_ref, output['y_recon'], independent=False))
+                        w_list_eva_hc.append(eval_w_distances(cv_data_ref, output_eva['y_recon'],  independent=False))
+                        w_list_pt.append(eval_w_distances(train_data_pt, output['x_recon'], independent=False))
+                        w_list_eva_pt.append(eval_w_distances(cv_data_pt, output_eva['x_recon'],  independent=False))
+                        w_list_pair.append(eval_w_distances(train_data_ref, train_data_pt, independent=False))
+                        w_list_eva_pair.append(eval_w_distances(synth_hc, synth_pt, independent=False))
 
                     if epoch%5==0:
                         predicted_label, predicted_class = label_change(output_eva['logits_x'],opt['ncategories'])
