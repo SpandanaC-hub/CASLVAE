@@ -1,0 +1,26 @@
+name: caslvae
+channels:
+  - pytorch
+  - conda-forge
+dependencies:
+  - python=3.9
+  - pytorch=1.12.1
+  - torchvision=0.13.1
+  - numpy<2
+  - scipy<1.12
+  - scikit-learn<1.4
+  - pandas<2
+  - seaborn<0.14
+  - matplotlib<3.9
+  - jupyterlab<4
+  - notebook<7
+  - ipykernel
+  - joblib
+  - plotly
+  - statsmodels
+  - nibabel
+  - nilearn<0.11
+  - anndata<0.10
+  - scanpy<1.10
+  - scikit-survival<0.23
+  - pyro-ppl<1.9
