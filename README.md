@@ -1,6 +1,6 @@
 # CASL-VAE
 
-**Contrastive Analysis with Structured Latents via Variational Autoencoder**
+**Learning Structured Latent Variables from Unpaired Data for Semi-supervised Clustering and Paired Sample Generation**
 
 CASL-VAE learns shared variation, target-specific subtypes, and within-subtype variation from **unpaired reference and target samples**. It supports subtype discovery, paired sample generation, and individual target-specific variation estimation. Training requires reference/target labels, but no subtype labels or matched pairs.
 
