@@ -119,14 +119,14 @@ def train_model(model, opt, train_loader, train_data_ref, train_data_pt, cv_data
                     reconx_loss_eva.append(float(F.mse_loss(output_eva['x_recon'], cv_data_pt, reduction='sum')/cv_data_pt.shape[0]))
                     recony_loss_eva.append(float(F.mse_loss(output_eva['y_recon'], cv_data_ref, reduction='sum')/cv_data_ref.shape[0]))
 
-                    z_synth = torch.randn(800,opt['nLatent_z'], device='cuda')
-                    scont_synth = torch.randn(400,opt['nLatent_s_cont'], device='cuda')
+                    z_synth = torch.randn(800,opt['nLatent_z'], device=opt['DEVICE'])
+                    scont_synth = torch.randn(400,opt['nLatent_s_cont'], device=opt['DEVICE'])
                     
-                    scat_preset_synth = torch.zeros(400,opt['ncategories'], device='cuda')
+                    scat_preset_synth = torch.zeros(400,opt['ncategories'], device=opt['DEVICE'])
                     scat_preset_synth[:,0]=1
                     scont_preset_synth =   torch.zeros_like(scont_synth) 
 
-                    scat_synth = torch.zeros(400,opt['ncategories'], device='cuda')
+                    scat_synth = torch.zeros(400,opt['ncategories'], device=opt['DEVICE'])
                     scat_synth[:,1:] = sample_gumbel_softmax(torch.zeros(400,opt['ncategories']-1) ,hard=True)
                     mu_sprior_synth = model.G_forward.prior_s_cont(scat_synth)
                     
