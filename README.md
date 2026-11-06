@@ -4,7 +4,7 @@
 
 CASL-VAE learns shared variation, target-specific subtypes, and within-subtype variation from **unpaired reference and target samples**. It supports subtype discovery, paired sample generation, and individual target-specific variation estimation. Training requires reference/target labels, but no subtype labels or matched pairs.
 
-![CASL-VAE architecture and applications](docs/caslvaeFig1_redesign.pdf)
+![CASL-VAE architecture and applications](docs/caslvaeoverview.png)
 
 Common and salient encoders separate shared and target-specific factors. Holding the common latent fixed and replacing the salient code with the reference preset generates a paired reference estimate.
 
