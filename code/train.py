@@ -3,7 +3,7 @@ os.chdir("./CA_VAE/code")
 
 import torch
 from train_utils import train_model
-from CA_model import CAVAE_gumbel
+from CASLVAE_model import CASLVAE
 from torch.utils.data import Dataset, DataLoader
 from data_utils import CreateDataset, train_test_split_unpaired
 import matplotlib.pyplot as plt
@@ -91,7 +91,7 @@ cv_data_x =  torch.from_numpy(cv_dataset.data_tgt).to(opt['DEVICE']).type(torch.
 
 
 # define model
-model_ca = CAVAE_gumbel()
+model_ca = CASLVAE()
 model_ca.create(opt=opt)
 model.set_preprocessing_params(data_params)
 model_ca, clusteringM, loss_list, converged = train_model(model_ca, opt, train_dataloader, train_data_y, train_data_x, cv_data_y, cv_data_x)
