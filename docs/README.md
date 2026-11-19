@@ -4,7 +4,7 @@ Run these examples from the repository root.
 
 For the script-based workflow, category selection, and experiment reporting, see the [experiment guide](experiments.md).
 
-For a complete synthetic example with data and latent-space plots, open [the cross-sectional 20-ROI notebook](CASLVAE_synthetic_20ROIs.ipynb). It imports the original model from `code/` and runs without covariate correction.
+For a complete synthetic example with data and latent-space plots, open [the cross-sectional 145-ROI notebook](CASLVAE_synthetic_145ROIs.ipynb). It imports the original model from `code/` and runs without covariate correction on a completely synthetic unpaired reference-target dataset.
 
 ## Prepare data and instantiate
 
