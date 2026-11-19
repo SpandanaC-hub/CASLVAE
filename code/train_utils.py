@@ -127,7 +127,7 @@ def train_model(model, opt, train_loader, train_data_ref, train_data_pt, cv_data
                     scont_preset_synth =   torch.zeros_like(scont_synth) 
 
                     scat_synth = torch.zeros(400,opt['ncategories'], device=opt['DEVICE'])
-                    scat_synth[:,1:] = sample_gumbel_softmax(torch.zeros(400,opt['ncategories']-1) ,hard=True)
+                    scat_synth[:,1:] = sample_gumbel_softmax(torch.zeros(400,opt['ncategories']-1, device=opt['DEVICE']) ,hard=True)
                     mu_sprior_synth = model.G_forward.prior_s_cont(scat_synth)
                     
                     synth_hc = model.G_forward.decode_common(z_synth[:400]) +  model.G_forward.decode_salient(scat_preset_synth, scont_preset_synth)
