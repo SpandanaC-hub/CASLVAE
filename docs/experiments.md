@@ -1,6 +1,6 @@
 # Running CASL-VAE experiments
 
-This guide covers the original cross-sectional CASL-VAE implementation. Longitudinal, GRU, flow, and RESTORE sandbox experiments are separate workflows.
+This guide covers the cross-sectional unpaired input CASL-VAE implementation.
 
 The current scripts contain dataset-specific preparation and private paths. They must be configured before use; they are not general-purpose CSV command-line interfaces.
 
@@ -41,7 +41,7 @@ With `covariate_correct=False`, set `covariates_list=[]`. Feature means and stan
 
 With `covariate_correct=True`, provide nonconstant numeric covariates. Their scaling and feature regression coefficients are fitted on training reference samples, followed by normalization of corrected reference features. Save and reuse these parameters for validation, test, and inference.
 
-This is covariate correction before CASL-VAE, not covariate conditioning of the original decoder. Keep feature/covariate ordering fixed. Do not fit preprocessing on the test set.
+This is covariate correction before CASL-VAE fitting using the train set. Keep feature/covariate ordering fixed. Do not fit preprocessing on the test set.
 
 ## Configure the existing runner
 
