@@ -144,150 +144,12 @@ else:
         'batch_size':128
         }
 os.makedirs(opt['path'], exist_ok=True)
-'''
-results={}
-#10-fold cv
-for fold in range(10):
-  
-  # get train  and cross validation data
-  train_data, train_label, train_covariate, test_data, test_label, test_covariate, preprocess_fn = train_test_split_unpaired(dataset.copy(),feature_cols=brain_measures_list, label_col='label', covariate_cols=covariates_list,test_size=0.2,covariate_correct=covariate_correct)
-  
-  data_params = {
-  'data_std':preprocess_fn.data_std,
-  'data_mean':preprocess_fn.data_mean,
-  'cov_min': preprocess_fn.cov_min,
-  'cov_max': preprocess_fn.cov_max,
-  'cov_beta': preprocess_fn.cov_beta,
-  'covariate_correct': preprocess_fn.covariate_correct,
-  'feature_names': brain_measures_list,
-  'covariate_names': covariates_list,
-  'tau':1
-  }
-
-  train_data, cv_data, train_label, cv_label = sklearn.model_selection.train_test_split(train_data, train_label, test_size=0.1)
-  #define dataset and dataloader
-  train_dataset = CreateDataset(train_data,train_label)
-  train_dataloader = DataLoader(train_dataset,batch_size=opt['batch_size'], shuffle=True)
-  #define cross-val dataset 
-  cv_dataset = CreateDataset(cv_data,cv_label)
-  
-  # load data for evalauting training
-  train_data_y = torch.from_numpy(train_dataset.data_bg).to(opt['DEVICE']).type(torch.float32) # get reference/background
-  train_data_x = torch.from_numpy(train_dataset.data_tgt).to(opt['DEVICE']).type(torch.float32) # get target
-  
-  cv_data_y = torch.from_numpy(cv_dataset.data_bg).to(opt['DEVICE']).type(torch.float32) # get reference
-  cv_data_x =  torch.from_numpy(cv_dataset.data_tgt).to(opt['DEVICE']).type(torch.float32) # get target
-  # define model and start training
-  converged=False
-  counter=0
-  while not converged:
-    model = CASLVAE()
-    model.create(opt=opt)
-    model.set_preprocessing_params(data_params)
-    model, clusteringM, loss_list, converged = train_model(model, opt, train_dataloader, train_data_y, train_data_x, cv_data_y, cv_data_x)
-    print('Training has converged:', converged)
-    counter+=1
-    if counter==3:
-      break
-  print('Number of training trials:', counter)
-  
-  scat_prob = scipy.special.softmax(clusteringM[0].squeeze(),axis=-1) # get scat predictions
-  
-  plt.figure(figsize=(35,10))
-  plt.subplot(2,7,1)
-  plt.plot(loss_list['recon_x'][0])
-  plt.plot(loss_list['recon_x'][1])
-  plt.plot(loss_list['recon_y'][0])
-  plt.plot(loss_list['recon_y'][1])
-  plt.legend(['recon pt','recon eva pt','recon hc','recon eva hc'])
-  
-  plt.subplot(2,7,2)
-  plt.plot(loss_list['w_list_pt'][0])
-  plt.plot(loss_list['w_list_pt'][1])
-  plt.plot(loss_list['w_list_hc'][0])
-  plt.plot(loss_list['w_list_hc'][1])
-  plt.legend(['wd pt','wd eva pt','wd hc','wd eva hc'])
-  
-  plt.subplot(2,7,3)
-  plt.plot(loss_list['w_list_pair'][0])
-  plt.plot(loss_list['w_list_pair'][1])
-  plt.legend(['wd unpaired train','wd unpaired synth'])
-  
-  plt.subplot(2,7,4)
-  plt.plot(loss_list['kl_loss'][0])
-  plt.title('kl z')
-  plt.subplot(2,7,5)
-  plt.plot(loss_list['kl_loss'][1])
-  plt.title('kl scat x')
-  plt.subplot(2,7,6)
-  plt.plot(loss_list['kl_loss'][2])
-  plt.title('kl scont x')
-  
-  plt.subplot(2,7,7)
-  plt.plot(loss_list['mmd_loss'])
-  plt.title('mmd loss')
-  
-  plt.subplot(2,7,8)
-  plt.plot(loss_list['tau'])
-  plt.title('gumbel temperature tau')
-  
-  plt.subplot(2,7,9)
-  plt.plot(loss_list['entropy'])
-  plt.title('cross-entropy on scat')
-  
-  plt.subplot(2,7,10)
-  plt.plot(loss_list['norm_reconsalient_y'])
-  plt.title('L1 norm of y salient recon')
-  
-  plt.subplot(2,7,11)
-  plt.plot(loss_list['consistency_list'])
-  plt.title('latent consistency')
-  
-  plt.subplot(2,7,12)
-  plt.plot(loss_list['kl_loss'][3])
-  plt.title('kl scont y penalty')
-  
-  plt.subplot(2,7,13)
-  plt.plot(loss_list['kl_loss'][4])
-  plt.title('kl scontprior y penalty')
-  
-  plt.subplot(2,7,14)
-  sns.scatterplot(x = scat_prob[:,-2], y=scat_prob[:,-1], hue=cv_dataset.tgt_labels)
-  sns.scatterplot(x=scat_prob[:,0], y=scat_prob[:,0], hue=cv_dataset.tgt_labels)
-  
-  plt.xlabel(f'scat {opt["ncategories"]}')
-  plt.ylabel(f'scat {opt["ncategories"]+1}')
-  plt.title('scat probabilities')
-  plt.savefig(os.path.join(opt['path'],f'monitor_loss_{fold}.jpg'))
-  plt.close()
-  
-  
-  # evaluate on held-out
-  test_data = torch.from_numpy(test_data).to(opt['DEVICE']).type(torch.float32) # get data
-  
-  model.G_forward.eval()
-  with torch.no_grad():
-    output_infer = model.G_forward(test_data,test_data,tau=model.tau)
-
-    cat_probs = scipy.special.softmax(output_infer['logits_x'].detach().to('cpu').numpy().squeeze(),axis=-1)
-    
-    x_recon = output_infer['x_recon'].detach().to('cpu').numpy()
-
-    
-    results[f'{fold}']={}
-    results[f'{fold}']['data_x'] = test_data.detach().to('cpu').numpy()
-    results[f'{fold}']['recon_x'] = x_recon
-    results[f'{fold}']['label_x'] = test_label 
-    results[f'{fold}']['cat_probs_x'] = cat_probs
-    
-
-with open(os.path.join(opt['path'], f'results_{severity}_dict.pkl'), 'wb') as f:
-	pickle.dump(results, f, protocol=pickle.HIGHEST_PROTOCOL)
-'''
-indtrain,indtest=sklearn.model_selection.train_test_split(dataset.index.tolist(),test_size=0.3)#test_df.index.tolist()
+# split into train test
+indtrain, indtest = sklearn.model_selection.train_test_split(dataset.index.tolist(),test_size=0.3) 
 dataset.loc[indtest,:].to_csv(os.path.join(opt['path'],'test_split.csv'),index=False)
 dataset = dataset.loc[indtrain,:].reset_index(drop=True)
-#Use all data to train # not 10 fold but 1 fold CV
+
+#Start training
 for fold in range(1):
   # get train  and cross validation data
   train_data, train_label, train_covariate, test_data, test_label, test_covariate, preprocess_fn = train_test_split_unpaired(dataset.copy(),feature_cols=brain_measures_list, label_col='label', covariate_cols=covariates_list,test_size=0.01,covariate_correct=covariate_correct)
@@ -338,45 +200,47 @@ for fold in range(1):
   plt.plot(loss_list['recon_x'][1])
   plt.plot(loss_list['recon_y'][0])
   plt.plot(loss_list['recon_y'][1])
-  plt.legend(['recon pt','recon eva pt','recon hc','recon eva hc'])
+  plt.legend(['train MSE tgt','val MSE tgt','train MSE ref','val MSE ref'])
   
   plt.subplot(2,7,2)
-  plt.plot(loss_list['w_list_pt'][0])
-  plt.plot(loss_list['w_list_pt'][1])
-  plt.plot(loss_list['w_list_hc'][0])
-  plt.plot(loss_list['w_list_hc'][1])
-  plt.legend(['wd pt','wd eva pt','wd hc','wd eva hc'])
-  
+  plt.plot(loss_list['w_list_tgt'][0])
+  plt.plot(loss_list['w_list_tgt'][1])
+  plt.plot(loss_list['w_list_ref'][0])
+  plt.plot(loss_list['w_list_ref'][1])
+  plt.legend(['train WD tgt','val WD tgt','train WD ref','val WD ref'])
+    
   plt.subplot(2,7,3)
-  plt.plot(loss_list['w_list_pair'][0])
-  plt.plot(loss_list['w_list_pair'][1])
-  plt.legend(['wd unpaired train','wd unpaired synth'])
-  
+  plt.plot(loss_list['w_list_unpair'][0])
+  plt.plot(loss_list['w_list_unpair'][1])
+  plt.legend(['real tgt-ref WD','synth tgt-ref WD'])
+    
   plt.subplot(2,7,4)
   plt.plot(loss_list['kl_loss'][0])
   plt.title('kl z')
+  
   plt.subplot(2,7,5)
   plt.plot(loss_list['kl_loss'][1])
   plt.title('kl scat x')
+  
   plt.subplot(2,7,6)
   plt.plot(loss_list['kl_loss'][2])
   plt.title('kl scont x')
-  
+    
   plt.subplot(2,7,7)
   plt.plot(loss_list['mmd_loss'])
   plt.title('mmd loss')
-  
+    
   plt.subplot(2,7,8)
   plt.plot(loss_list['tau'])
   plt.title('gumbel temperature tau')
-  
+   
   plt.subplot(2,7,9)
   plt.plot(loss_list['entropy'])
-  plt.title('cross-entropy on scat')
+  plt.title('BCE penalty on scat')
   
   plt.subplot(2,7,10)
   plt.plot(loss_list['norm_reconsalient_y'])
-  plt.title('L1 norm of y salient recon')
+  plt.title('L1 norm of ref domain salient latent recon')
   
   plt.subplot(2,7,11)
   plt.plot(loss_list['consistency_list'])
@@ -389,13 +253,11 @@ for fold in range(1):
   plt.subplot(2,7,13)
   plt.plot(loss_list['kl_loss'][4])
   plt.title('kl scontprior y penalty')
-  
+    
   plt.subplot(2,7,14)
-  sns.scatterplot(x = scat_prob[:,-2], y=scat_prob[:,-1], hue=cv_dataset.tgt_labels)
-  sns.scatterplot(x=scat_prob[:,0], y=scat_prob[:,0], hue=cv_dataset.tgt_labels)
-  
-  plt.xlabel(f'scat {opt["ncategories"]}')
-  plt.ylabel(f'scat {opt["ncategories"]+1}')
+  sns.scatterplot(x = scat_prob[:,-2], y=scat_prob[:,-1], hue=cv_dataset.tgt_labels)  
+  plt.xlabel("Second-last category probability")
+  plt.ylabel("Last category probability")
   plt.title('scat probabilities')
   plt.savefig(os.path.join(opt['path'],f'monitor_loss_{fold}.jpg'))
   plt.close()
