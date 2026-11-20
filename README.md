@@ -20,9 +20,9 @@ conda activate caslvae
 Provide one row per sample with numeric features and a group label:
 
 ```csv
-subject_id,label,ROI_1,ROI_2,ROI_3
-sub-001,Background,3250,6100,4800
-sub-002,Target,2900,5700,4300
+subject_id,label,Age,ROI_1,ROI_2,ROI_3
+sub-001,Background,63,3250,6100,4800
+sub-002,Target,74,2900,5700,4300
 ```
 
 Reference samples must use **`Background`**; all other labels are treated as target. Both groups are required. Age, sex, and intracranial volume can be used for optional covariate correction; categorical covariates must be encoded numerically.
