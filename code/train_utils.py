@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 
 
 
-def train_model(model, opt, train_loader, train_data_ref, train_data_pt, cv_data_ref, cv_data_pt, verbose=True, wdist_monitor=False):
+def train_model(model, opt, train_loader, train_data_ref, train_data_tgt, cv_data_ref, cv_data_tgt, verbose=True, wdist_monitor=False):
             # initialize variables to store losses
             clusteringM=[]
             kl_z_loss = []
@@ -23,12 +23,12 @@ def train_model(model, opt, train_loader, train_data_ref, train_data_pt, cv_data
             reconx_loss_eva = []
             recony_loss_eva = []
 
-            w_list_hc=[] # WD between real HC and fake HC
-            w_list_eva_hc=[]
-            w_list_pt=[]# WD between real PT and fake PT
-            w_list_eva_pt=[]
-            w_list_pair=[] # WD between real HC and real PT
-            w_list_eva_pair=[] # WD between fake HC and fake PT
+            w_list_ref=[] # WD between real ref and synth ref
+            w_list_eva_ref=[]
+            w_list_tgt=[]# WD between real ref and synth tgt
+            w_list_eva_tgt=[]
+            w_list_unpair=[] # WD between real ref and real tgt
+            w_list_eva_unpair=[] # WD between synth ref and synth tgt
 
             norm_reconsalient_list = []
             consistency_list = []
@@ -44,7 +44,7 @@ def train_model(model, opt, train_loader, train_data_ref, train_data_pt, cv_data
             reduce = 'mean'
             step=0
             tau_list = []
-            predicted_label_past = np.zeros(cv_data_pt.shape[0])
+            predicted_label_past = np.zeros(cv_data_tgt.shape[0])
             cluster_stability = [0,0,0,0] # lets monitor over the last 4 evaluations
             patience = 20
             tolerance = 1e-1
@@ -65,15 +65,15 @@ def train_model(model, opt, train_loader, train_data_ref, train_data_pt, cv_data
                 print('======== Epoch {:} / {:} ========'.format(epoch+1, opt['epochs']))
                 print('Training...')
                 t0 = time.time()
-                for i,(ref_batch, pt_batch) in enumerate(train_loader):
+                for i,(ref_batch, tgt_batch) in enumerate(train_loader):
                     ref_batch = ref_batch.to(opt['DEVICE']).type(torch.float32)
-                    pt_batch = pt_batch.to(opt['DEVICE']).type(torch.float32)
+                    tgt_batch = tgt_batch.to(opt['DEVICE']).type(torch.float32)
                     if step%100==0:
                         tau = max(tau_min, tau0 * np.exp(-r * step))
                     step+=1
                     tau_list.append(tau)
                     #train
-                    losses = model.train_instance(pt_batch, ref_batch,tau=tau)
+                    losses = model.train_instance(tgt_batch, ref_batch,tau=tau)
                     kl_z_batch += losses['kldiv_z'] # kl on z
                     G_combined_batch_loss += losses['Combined_loss']
                     recon_y_batch += losses['recon_loss_y']
@@ -112,11 +112,11 @@ def train_model(model, opt, train_loader, train_data_ref, train_data_pt, cv_data
                 # model eval
                 model.G_forward.eval()
                 with torch.no_grad():
-                    output = model.G_forward(train_data_pt, train_data_ref,tau=tau)
-                    output_eva = model.G_forward(cv_data_pt, cv_data_ref,tau=tau)
+                    output = model.G_forward(train_data_tgt, train_data_ref,tau=tau)
+                    output_eva = model.G_forward(cv_data_tgt, cv_data_ref,tau=tau)
 
 
-                    reconx_loss_eva.append(float(F.mse_loss(output_eva['x_recon'], cv_data_pt, reduction='sum')/cv_data_pt.shape[0]))
+                    reconx_loss_eva.append(float(F.mse_loss(output_eva['x_recon'], cv_data_tgt, reduction='sum')/cv_data_tgt.shape[0]))
                     recony_loss_eva.append(float(F.mse_loss(output_eva['y_recon'], cv_data_ref, reduction='sum')/cv_data_ref.shape[0]))
 
                     z_synth = torch.randn(800,opt['nLatent_z'], device=opt['DEVICE'])
@@ -127,19 +127,19 @@ def train_model(model, opt, train_loader, train_data_ref, train_data_pt, cv_data
                     scont_preset_synth =   torch.zeros_like(scont_synth) 
 
                     scat_synth = torch.zeros(400,opt['ncategories'], device=opt['DEVICE'])
-                    scat_synth[:,1:] = sample_gumbel_softmax(torch.zeros(400,opt['ncategories']-1, device=opt['DEVICE']) ,hard=True)
+                    scat_synth[:,1:] = sample_gumbel_softmax(torch.zeros(400,opt['ncategories']-1) ,hard=True)
                     mu_sprior_synth = model.G_forward.prior_s_cont(scat_synth)
                     
-                    synth_hc = model.G_forward.decode_common(z_synth[:400]) +  model.G_forward.decode_salient(scat_preset_synth, scont_preset_synth)
-                    synth_pt = model.G_forward.decode_common(z_synth[400:]) +  model.G_forward.decode_salient(scat_synth, scont_synth+mu_sprior_synth)
+                    synth_ref = model.G_forward.decode_common(z_synth[:400]) +  model.G_forward.decode_salient(scat_preset_synth, scont_preset_synth)
+                    synth_tgt = model.G_forward.decode_common(z_synth[400:]) +  model.G_forward.decode_salient(scat_synth, scont_synth+mu_sprior_synth)
 
                     if wdist_monitor:
-                        w_list_hc.append(eval_w_distances(train_data_ref, output['y_recon'], independent=False))
-                        w_list_eva_hc.append(eval_w_distances(cv_data_ref, output_eva['y_recon'],  independent=False))
-                        w_list_pt.append(eval_w_distances(train_data_pt, output['x_recon'], independent=False))
-                        w_list_eva_pt.append(eval_w_distances(cv_data_pt, output_eva['x_recon'],  independent=False))
-                        w_list_pair.append(eval_w_distances(train_data_ref, train_data_pt, independent=False))
-                        w_list_eva_pair.append(eval_w_distances(synth_hc, synth_pt, independent=False))
+                        w_list_ref.append(eval_w_distances(train_data_ref, output['y_recon'], independent=False))
+                        w_list_eva_ref.append(eval_w_distances(cv_data_ref, output_eva['y_recon'],  independent=False))
+                        w_list_tgt.append(eval_w_distances(train_data_tgt, output['x_recon'], independent=False))
+                        w_list_eva_tgt.append(eval_w_distances(cv_data_tgt, output_eva['x_recon'],  independent=False))
+                        w_list_unpair.append(eval_w_distances(train_data_ref, train_data_tgt, independent=False))
+                        w_list_eva_unpair.append(eval_w_distances(synth_ref, synth_tgt, independent=False))
 
                     if epoch%5==0:
                         predicted_label, predicted_class = label_change(output_eva['logits_x'],opt['ncategories'])
@@ -151,8 +151,8 @@ def train_model(model, opt, train_loader, train_data_ref, train_data_pt, cv_data
                         cluster_stability.append(total_label_change)
                         cluster_stability.pop(0)
                         if tau <= (0.5+1e-6) and epoch>(min_epochs_for_earlystopping):
-                            if (max(cluster_stability)< max(int(cv_data_pt.shape[0]*0.01),10)) and (reconx_loss_eva[-1] > min(reconx_loss_eva[-patience:])+tolerance) and (recony_loss_eva[-1] > min(recony_loss_eva[-patience:])+tolerance):
-                                loss_list = {'combined_loss': G_combined_loss, 'recon_x': [reconx_loss, reconx_loss_eva], 'recon_y': [recony_loss, recony_loss_eva], 'kl_loss': [kl_z_loss, kl_scat_loss, kl_scont_loss,kl_scont_loss_y, kl_scontprior_loss_y], 'mmd_loss':mmd_z_loss, 'w_list_hc':[w_list_hc, w_list_eva_hc], 'w_list_pt':[w_list_pt, w_list_eva_pt],'w_list_pair':[w_list_pair, w_list_eva_pair],'tau':tau_list, 'entropy':entropy_list,'norm_reconsalient_y':norm_reconsalient_list,'consistency_list':consistency_list}
+                            if (max(cluster_stability)< max(int(cv_data_tgt.shape[0]*0.01),10)) and (reconx_loss_eva[-1] > min(reconx_loss_eva[-patience:])+tolerance) and (recony_loss_eva[-1] > min(recony_loss_eva[-patience:])+tolerance):
+                                loss_list = {'combined_loss': G_combined_loss, 'recon_x': [reconx_loss, reconx_loss_eva], 'recon_y': [recony_loss, recony_loss_eva], 'kl_loss': [kl_z_loss, kl_scat_loss, kl_scont_loss,kl_scont_loss_y, kl_scontprior_loss_y], 'mmd_loss':mmd_z_loss, 'w_list_ref':[w_list_ref, w_list_eva_ref], 'w_list_tgt':[w_list_tgt, w_list_eva_tgt],'w_list_unpair':[w_list_unpair, w_list_eva_unpair],'tau':tau_list, 'entropy':entropy_list,'norm_reconsalient_y':norm_reconsalient_list,'consistency_list':consistency_list}
                                 model.save_model(model, epoch, loss_list, opt, path=opt['path'])
                                 # model eval
                                 logits_eva=output_eva['logits_x'].view(-1,1,opt['ncategories']).to('cpu').numpy() 
@@ -164,7 +164,7 @@ def train_model(model, opt, train_loader, train_data_ref, train_data_pt, cv_data
                 if (epoch%50==0) and verbose:
                     for i in range(8):
                         ax=plt.subplot(2,4,i+1)
-                        ax.scatter(cv_data_pt[:,0].to('cpu').numpy(),cv_data_pt[:,i].to('cpu').numpy(), alpha=0.2)
+                        ax.scatter(cv_data_tgt[:,0].to('cpu').numpy(),cv_data_tgt[:,i].to('cpu').numpy(), alpha=0.2)
                         ax.scatter(cv_data_ref[:,0].to('cpu').numpy(),cv_data_ref[:,i].to('cpu').numpy(), alpha=0.2)
                         ax.scatter(output_eva['y_recon'][:,0].to('cpu').numpy(),output_eva['y_recon'][:,i].to('cpu').numpy(), alpha=0.2)
                         ax.scatter(output_eva['x_recon'][:,0].to('cpu').numpy(),output_eva['x_recon'][:,i].to('cpu').numpy(), alpha=0.2)
@@ -172,7 +172,7 @@ def train_model(model, opt, train_loader, train_data_ref, train_data_pt, cv_data
                     plt.savefig(os.path.join(opt['path'],f'CASLVAE_quality_epoch{epoch}.jpg'))
                     plt.close()
             
-            loss_list = {'combined_loss': G_combined_loss, 'recon_x': [reconx_loss, reconx_loss_eva], 'recon_y': [recony_loss, recony_loss_eva], 'kl_loss': [kl_z_loss, kl_scat_loss, kl_scont_loss,kl_scont_loss_y, kl_scontprior_loss_y],                             'mmd_loss':mmd_z_loss, 'w_list_hc':[w_list_hc, w_list_eva_hc], 'w_list_pt':[w_list_pt, w_list_eva_pt],'w_list_pair':[w_list_pair, w_list_eva_pair],'tau':tau_list, 'entropy':entropy_list,'norm_reconsalient_y':norm_reconsalient_list,'consistency_list':consistency_list}
+            loss_list = {'combined_loss': G_combined_loss, 'recon_x': [reconx_loss, reconx_loss_eva], 'recon_y': [recony_loss, recony_loss_eva], 'kl_loss': [kl_z_loss, kl_scat_loss, kl_scont_loss,kl_scont_loss_y, kl_scontprior_loss_y], 'mmd_loss':mmd_z_loss, 'w_list_ref':[w_list_ref, w_list_eva_ref], 'w_list_tgt':[w_list_tgt, w_list_eva_tgt],'w_list_unpair':[w_list_unpair, w_list_eva_unpair],'tau':tau_list, 'entropy':entropy_list,'norm_reconsalient_y':norm_reconsalient_list,'consistency_list':consistency_list}
             
             model.save_model(model, epoch, loss_list, opt, path=opt['path'])
             # save cluster memebership
