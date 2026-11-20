@@ -1,3 +1,4 @@
+#Train CASLVAE with a single decoder that takes concatenation of common and salient latents 
 import os, time, numpy as np, math
 from utils import format_time,  weights_init,  dotdict, sample_gumbel_softmax, mmd
 from evaluate import eval_w_distances , label_change
