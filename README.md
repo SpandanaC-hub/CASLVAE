@@ -47,7 +47,7 @@ Training saves `model_checkpoint.pt`, preprocessing parameters, and monitoring p
 
 The trained model can be used to infer category probabilities, common and salient embeddings, reconstructions, and paired reference estimates. Target-specific variation is the reconstruction minus its paired reference; the deviation index is its mean absolute value across features.
 
-See [Python examples](docs/usage.md) for model setup, checkpoint loading, and inference. Reuse training preprocessing and feature order for new samples. 
+See [Example Script](docs/usage.md) for model setup, checkpoint loading, and inference. Reuse training preprocessing and feature order for new samples. 
 
 ### Synthetic example and latent plots
 The [145-ROI notebook](docs/CASLVAE_synthetic_145ROIs.ipynb) generates cross-sectional reference/target data and trains CASLVAE. See the notebook for step by step instruction.
