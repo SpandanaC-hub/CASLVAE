@@ -249,15 +249,16 @@ def main():
                         help="Directory for checkpoints and plots.")
     parser.add_argument("--ncategories", type=int, default=3,
                         help="Number of categories, including reference category 0.")
-    parser.add_argument("--data-file", type=Path,
-                        default=ROOT / "docs/synthetic_data/synthetic_cross_sectional.csv")
-    parser.add_argument("--feature-names", type=Path, default=ROOT / "docs/synthetic_data/synthetic_featurenames.csv")
+    parser.add_argument("--data-file", type=Path, default=ROOT / "docs/synthetic_data/synthetic_cross_sectional.csv",
+                        help="path to CSV file with data")
+    parser.add_argument("--feature-names", type=Path, default=ROOT / "docs/synthetic_data/synthetic_featurenames.csv",
+                        help="path to CSV file with feature names")
     parser.add_argument("--covariate-correct", action="store_true", 
-                        help="Enable covariate correction using the specified covariates.")
+                        help="True enables covariate correction using the specified covariates.")
     parser.add_argument("--covariates", nargs="*", default=[],
                         help="Numeric, nonconstant covariate columns, e.g. Age Sex ICV.")
     parser.add_argument("--epochs", type=int, default=500)
-    parser.add_argument("--max-attempts", type=int, default=3)
+    parser.add_argument("--max-attempts", type=int, default=3, help="Number of attempts to train model until convergence")
     args = parser.parse_args()
     if args.ncategories < 2:
         parser.error("ncategories must be at least 2.")
