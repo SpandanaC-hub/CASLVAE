@@ -36,7 +36,7 @@ Edit the dataset paths, feature/covariate lists, and output directory in the scr
 python scripts/check_cluster_stability_realdata.py
 
 # Train with the selected opt['ncategories']
-python scripts/run_CASLVAE_realdata.py
+python scripts/run_CASLVAE.py
 ```
 
 **`ncategories` includes the reference category:** `3` means one reference and two target categories. Reference is Python index `0`; keep `nLatent_s_cat=1`.
