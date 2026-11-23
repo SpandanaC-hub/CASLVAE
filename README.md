@@ -48,11 +48,12 @@ python docs/run_CASLVAE_realdata.py
 Stability results are saved in caslvae_cluster_stability_output/; the trained checkpoint `model_checkpoint.pt`, preprocessing parameters, and monitoring plots are saved in caslvae_training_output/.
 
 To process your own data, supply the data and feature-list CSVs:
+
 ```bash
 python docs/check_cluster_stability_realdata.py --data-file data.csv --feature-names features.csv --m-list 2 3 4 5 --output stability_results
 
 python docs/run_CASLVAE_realdata.py --data-file data.csv --feature-names features.csv --ncategories 3 --output training_results
-'''
+```
 
 For optional covariate correction, append --covariate-correct --covariates Age Sex ICV.
 **`ncategories` includes the reference category:** `3` means one reference and two target categories. Reference is Python index `0`; keep `nLatent_s_cat=1`.
