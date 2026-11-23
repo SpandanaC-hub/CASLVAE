@@ -254,7 +254,7 @@ def main():
     parser.add_argument("--feature-names", type=Path, default=ROOT / "docs/synthetic_data/synthetic_featurenames.csv",
                         help="path to CSV file with feature names")
     parser.add_argument("--covariate-correct", action="store_true", 
-                        help="True enables covariate correction using the specified covariates.")
+                        help="Argument enables covariate correction using the specified covariates.")
     parser.add_argument("--covariates", nargs="*", default=[],
                         help="Numeric, nonconstant covariate columns, e.g. Age Sex ICV.")
     parser.add_argument("--epochs", type=int, default=500)
@@ -281,3 +281,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
