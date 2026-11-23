@@ -1,167 +1,165 @@
+"""Configurable copy of scripts/check_cluster_stability.py.
 
-# contrastive VAE
-
-import os, fnmatch, time, datetime, pickle, argparse, scipy, gzip, pickle5
+Run: python scripts/check_cluster_stability.py --help
+Stability uses training data only to assess the reproducibility of the selected salient categories M
+"""
+from pathlib import Path
 import sys
-curr=os.getcwd()
-sys.path.insert(0,os.path.join(curr,'code'))
-import pandas as pd, numpy as np, random
-import matplotlib.pyplot as plt
-import seaborn as sns
+import argparse
+import json
+import pickle
+import numpy as np
 import torch
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "code"))
+
 from cluster_utils import crossval_cluster_stability, pairwise_ari
 
-sys.path.insert(0, 'C:/Anaconda3/envs/normative/lib/site-packages')
-
-__author__ = "Spandana Chintapalli"
-__copyright__ = "Copyright 2023-2024 The CBICA & SBIA Lab"
-__credits__ = ["Spandana Chintapalli"]
-__license__ = "See LICENSE file"
-__version__ = "0.1.0"
-__maintainer__ = "Spandana Chintapalli"
-__email__ = "saispandanachintapalli@gmail.com"
-__status__ = "Development"
-
-if torch.cuda.is_available():
-    DEVICE='cuda'
-else:
-    DEVICE='cpu'
-
-seed=42
-torch.cuda.manual_seed(seed)
-torch.manual_seed(42)
-torch.cuda.manual_seed_all(seed)
-np.random.seed(seed)
-random.seed(seed)
-          
-#load training data
-severity = 'real'
-# load istaging
-with gzip.open('/cbica/projects/ISTAGING/Pipelines/ISTAGING_Data_Consolidation_2020/v2.0/istaging.pkl.gz','r') as f:
-    df_istag = pickle5.load(f)#('c:/Users/ChintapS/Documents/FITBIR_harmonize/May_2023_fitbir_istaging/istaging.pkl')
-    
-
-df = df_istag[df_istag.H_MUSE_Volume_47.notnull()].reset_index(drop=True) # select imaging samples
-df = df.drop_duplicates('PTID').reset_index(drop=True) # select one sample per ID
-
-# select 45 and older
-df= df[(df.Age>=45) & (df.Age<=80)].reset_index(drop=True) # select older adults
-
-df_cn = df[df['Diagnosis_nearest_2.0']=='CN'].reset_index(drop=True)
-df_pt = df[df['Diagnosis_nearest_2.0']!='CN'].reset_index(drop=True)
-print('Diagnosis', df_pt['Diagnosis_nearest_2.0'].unique())
-#df_pt = df_pt[df_pt['Diagnosis_nearest_2.0'].isin(['AD','MCI'])].reset_index(drop=True) # select 
-#df_pt = df_pt[~(df_pt.MMSE>29)].reset_index(drop=True) 
-# whether to use adni or not
-df_cn=df_cn[~df_cn.Study.isin(['ADNI'])].reset_index(drop=True)#'BIOCARD', 'BLSA','WHIMS', 'WRAP','SHIP','PENN',AIBL', 'OASIS'
-df_pt=df_pt[~df_pt.Study.isin(['ADNI'])].reset_index(drop=True)
-
-df_cn = df_cn[~df_cn['Diagnosis_nearest_2.0'].isnull()].reset_index(drop=True)
-df_pt = df_pt[~df_pt['Diagnosis_nearest_2.0'].isnull()].reset_index(drop=True)
-# whether to use adni or not
-#df_cn=df_cn[df_cn.Study.isin(['OASIS','PENN'])].reset_index(drop=True)#'BIOCARD', 'BLSA','WHIMS', 'WRAP','SHIP','PENN',AIBL', 'OASIS'
-#df_pt=df_pt[df_pt.Study.isin(['OASIS','PENN'])].reset_index(drop=True)
-#when using ADNI
-#df_cn=df_cn[df_cn.Phase.isin(['ADNI2','ADNIGO'])].reset_index(drop=True) 
-#df_pt=df_pt[df_pt.Phase.isin(['ADNI2', 'ADNIGO'])].reset_index(drop=True)
-
-print('diagnosis labels', df_pt['Diagnosis_nearest_2.0'].unique(),'CN sample size', df_cn.shape,'PT sample size',df_pt.shape)
-df_cn.DLICV = df_cn.DLICV_baseline
-df_pt.DLICV = df_pt.DLICV_baseline
+# Share CSV preparation and model defaults with the training runner.
+def load_development_data(data_file, featurenames_file, label_column="label",
+                          reference_label="Background", subject_column="subject_id",
+                          covariate_correct=False, covariates=None, seed=42,
+                          test_fraction=.20, validation_fraction=.1,
+                          use_csv_splits=True):
+    data = pd.read_csv(data_file).reset_index(drop=True)
+    if label_column not in data:
+        raise ValueError("Missing label column: " + label_column)
+    if data[label_column].isna().any():
+        raise ValueError("Labels must not be missing")
+    data["label"] = np.where(data[label_column].eq(reference_label), "Background", "Target")
+    features = pd.read_csv(featurenames_file)['feature_names'].tolist()
+    covariates = (covariates or []) if covariate_correct else []
+    if len(features) < 8:
+        raise ValueError("Specify at least 8 features for the existing training monitors")
+    if covariate_correct and not covariates:
+        raise ValueError("Specify covariates when covariate correction is enabled")
+    for columns in (features, covariates):
+        if columns and not np.isfinite(data[columns].to_numpy(dtype=float)).all():
+            raise ValueError("Features/covariates must be numeric and finite")
+    if subject_column and data[subject_column].duplicated().any():
+        raise ValueError("These cross-sectional templates expect one row per subject")
+    if use_csv_splits and "split" in data:
+        if not data["split"].isin(["train", "validation", "test"]).all():
+            raise ValueError("split must contain only train, validation, or test")
+        development = data[data["split"].ne("test")].copy()
+        test = data[data["split"].eq("test")].copy()
+    else:
+        development, test = train_test_split(
+            data, test_size=test_fraction, random_state=seed, stratify=data["label"])
+    for name, frame in (("development", development), ("test", test)):
+        if set(frame["label"]) != {"Background", "Target"}:
+            raise ValueError(name + " must contain reference and target samples")
+    return development.reset_index(drop=True), test.reset_index(drop=True), features, covariates
 
 
-data = pd.concat([df_cn,df_pt],axis=0).reset_index(drop=True)
-data=data.rename(columns={'Diagnosis_nearest_2.0':'label'})
-print('Trainind data labels', data.label.value_counts())
-print('Study counts', data.groupby('Study').label.value_counts())
-# Include ROIs of choice
-df_muse = pd.read_csv('/cbica/home/chintaps/GAN_normative/HybridGAN_snapshot_mini_15Dec2024/data/MUSE_ROI_Dictionary.csv')
-col_muse_ind = df_muse[df_muse.ROI_LEVEL=='SINGLE'].ROI_INDEX.tolist()
-col_muse_ind = list(set(col_muse_ind)-set([46,63,64]))# include ventricles and exclude csf rois
+def default_options(nfeatures, ncategories, nLatent_z=15, nLatent_s_cont=2, nLatent_s_cat=1,
+        mmd_lambda=100, kl_scat_lambda=1, kl_scont_lambda=1,
+        kl_sconty_lambda=1, kl_z_lambda=1, consistency_lambda=10,
+        norm_salienty_lambda=0, entropy_lambda=1,
+        lr=.001, beta1=.5, DEVICE='cpu', epochs=500,
+        decay_epochs=1, scheduler=False, batch_size=128, path='./'):
+    """Model settings; training supplies the feature count and output path."""
+    return dict(nfeatures=nfeatures,# number of features
+        nLatent_z=nLatent_z, # common latent dimension
+        nLatent_s_cont=nLatent_s_cont, # salient continuous latent dimension
+        nLatent_s_cat=nLatent_s_cat, 
+        ncategories=ncategories, # number of salient categories including reference category index 0
+        mmd_lambda= mmd_lambda, # hyperparameter to control mmd penalty
+        kl_scat_lambda=kl_scat_lambda, # hyperparameter to control kl on s cat for target
+        kl_scont_lambda=kl_scont_lambda, # hyperparameter to control kl on s cont for target 
+        kl_sconty_lambda=kl_sconty_lambda, # hyperparameter to control penalty on s cont for reference
+        kl_z_lambda=kl_z_lambda, # hyperparameter to control kl on common latent z
+        consistency_lambda=consistency_lambda,# hyperparameter to control latent consistency of z
+        norm_salienty_lambda=norm_salienty_lambda, # OPTIONAL TODO: hyperparameter to control L1 norm penalty on salient reconstruction for reference
+        entropy_lambda=entropy_lambda,# hyperparameter to control BCE penalty on preset reference category
+        lr=lr, # learning rate
+        beta1=beta1,  #beta1 hyperparameter in Adam optimizer
+        DEVICE=DEVICE, # use 'cpu' or 'cuda'
+        epochs=epochs,
+        decay_epochs=decay_epochs, # TODO: currently diabled, epoch number when learning rate decay should begin
+        scheduler=scheduler,  #True to set learning rate scheduler
+        batch_size=batch_size, 
+        path=path # path of directory to save model
+        )
 
-# define brain features and covariates for mapping
-covariates_list = ['Sex','Age', 'DLICV'] # if empty, does not return any covariates
-brain_measures_list = ['_'.join(['H_MUSE_Volume', str(j)])  for j  in  col_muse_ind]
 
-# Define Datasets
-dataset=data.copy()
-dataset.label.replace({'CN':'Background'},inplace=True) # select "Background" group
-dataset.Sex = dataset.Sex.replace({'F':1,'M':0}) # Recode Sex
-# Set to True if you want to correct for covariates
-covariate_correct = True
+def set_seed(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed_all(seed)
 
-if not covariate_correct:
-  covariates_list=[]
-  # define model options, set mmd lambda and consistency lamda as lower values 
-  opt={'nfeatures':len(brain_measures_list), # number of ROIs
-        'nLatent_z':15,
-        'nLatent_s_cont':2,
-        'nLatent_s_cat':1,
-        'ncategories':4,
-        'mmd_lambda':100,# hyperparameter to control mmd penalty
-        'kl_scat_lambda':1,# hyperparameter to control kl on s cat for x  
-        'kl_scont_lambda':1,# hyperparameter to control kl on s cont for x
-        'kl_sconty_lambda':1,# hyperparameter to control penalty on s cont for y 
-        'kl_z_lambda':1, # hyperparameter to control kl on z for x and y  
-        'consistency_lambda':10, # hyperparameter to control latent consistency of z
-        'norm_salienty_lambda': 0, # hyperparameter to control L1 norm penalty on salient reconstruction for y
-        'entropy_lambda':1,
-        'lr':0.001, # learning rate of G, for D it will be lr/5
-        'beta1':0.5,  #beta1 hyperparameter in Adam optimizer
-        'DEVICE':DEVICE, # use 'cpu' or 'cuda'
-        'epochs':500, # max training epochs
-        'decay_epochs': 1, # epoch number when learning rate decay should begin
-        'scheduler': False, #True to set learning rate scheduler
-        'path':f'/cbica/home/chintaps/CA_VAE/results/severity{severity}_clusterstability/CASLVAE_2dec_wcov_allistagingwoadnirerun/',# path of directory to save model
-        'batch_size':128
-        }
-else:
-  # define model options
-  opt={'nfeatures':len(brain_measures_list), # number of ROIs
-        'nLatent_z':15,
-        'nLatent_s_cont':2,
-        'nLatent_s_cat':1,
-        'ncategories':4,
-        'mmd_lambda':100,# hyperparameter to control mmd penalty
-        'kl_scat_lambda':1,# hyperparameter to control kl on s cat for x  
-        'kl_scont_lambda':1,# hyperparameter to control kl on s cont for x
-        'kl_sconty_lambda':1,# hyperparameter to control penalty on s cont for y 
-        'kl_z_lambda':1, # hyperparameter to control kl on z for x and y  
-        'consistency_lambda':10, # hyperparameter to control latent consistency of z
-        'norm_salienty_lambda': 0, # hyperparameter to control L1 norm penalty on salient reconstruction for y
-        'entropy_lambda':1,
-        'lr':0.001, # learning rate of G, for D it will be lr/5
-        'beta1':0.5,  #beta1 hyperparameter in Adam optimizer
-        'DEVICE':DEVICE, # use 'cpu' or 'cuda'
-        'epochs':500, # max training epochs
-        'decay_epochs': 1, # epoch number when learning rate decay should begin
-        'scheduler': False, #True to set learning rate scheduler
-        'path':f'/cbica/home/chintaps/CA_VAE/results/severity{severity}_clusterstability/CASLVAE_2dec_wocov_allistagingwoadnirerun/',# path of directory to save model
-        'batch_size':128
-        }
-os.makedirs(opt['path'], exist_ok=True)
 
-M_list = [2,3,4,5,6]
-clustering_logits = crossval_cluster_stability(dataset.copy(),opt, covariate_correct, brain_measures_list, covariates_list, M_list)
+def run_stability(opt, data_file, output_dir, data_options=None, m_list=None):
+    """Run with explicit model options and separate CSV/preprocessing settings."""
+    opt = dict(opt)  # updates ncategories and other options in-place.
+    data_options = dict(data_options or {})
+    seed = data_options.get("seed", 42)
+    covariate_correct = data_options.get("covariate_correct", False)
+    output_dir = Path(output_dir)
+    set_seed(seed)
+    m_list = list([2, 3, 4, 5, 6] if m_list is None else m_list)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    dataset, test, features, covariates = load_development_data(data_file, **data_options)
+    dataset.to_csv(output_dir / "train_split.csv", index=False)
+    test.to_csv(output_dir / "test_split.csv", index=False)
+    opt.update(nfeatures=len(features), path=str(output_dir))
+    (output_dir / "options.json").write_text(json.dumps(
+        dict(opt=opt, candidate_categories=m_list), indent=2))
+    # It monitors all samples, including those in each training subset.
+    # Its optional covariate correction is fitted before repeated subsampling.
+    clustering_logits = crossval_cluster_stability(
+        dataset.copy(), opt, covariate_correct, features, covariates, m_list)
+    results = {m: pairwise_ari(logits) for m, logits in zip(m_list, clustering_logits)}
+    with (output_dir / "pairwise_ari_dict.pkl").open("wb") as stream:
+        pickle.dump(results, stream, protocol=pickle.HIGHEST_PROTOCOL)
+    with (output_dir / "clustering_results.pkl").open("wb") as stream:
+        pickle.dump(dict(logits=clustering_logits), stream, protocol=pickle.HIGHEST_PROTOCOL)
+    fig, ax = plt.subplots()
+    ax.boxplot([results[m] for m in m_list], showmeans=True)
+    ax.set(xticks=np.arange(1, len(m_list)+1), xticklabels=m_list,
+           xlabel="Number of categories M (including reference)",
+           ylabel="Pairwise ARI across 10 repeated training subsets")
+    fig.tight_layout()
+    fig.savefig(output_dir / "pairwiseari.jpg", dpi=150)
+    plt.close(fig)
 
-     
-pairwise_ari_results = {}
-for i, cluster in enumerate(clustering_logits):
-    pairwise_ari_results[M_list[i]] =  pairwise_ari(cluster)
-    
-with open(os.path.join(opt['path'], f'pairwise_ari_dict.pkl'), 'wb') as f:
-	pickle.dump(pairwise_ari_results, f, protocol=pickle.HIGHEST_PROTOCOL)
 
-keys = list( pairwise_ari_results.keys())
-values = list( pairwise_ari_results.values())
-plt.boxplot( values, showmeans=True)
-plt.xticks(list(np.arange(1,len(M_list)+1)),M_list)
-plt.ylabel('Pairwise ARI 10-fold cross val')
-plt.xlabel('Number of Categories M')
-plt.savefig(os.path.join(opt['path'],f'pairwiseari.jpg'))
-plt.close()
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--output", type=Path, default=ROOT / "caslvae_cluster_stability_output",
+                        help="Directory for stability results and plots.")
+    parser.add_argument("--data-file", type=Path,
+                        default=ROOT / "docs/synthetic_data/synthetic_cross_sectional.csv")
+    parser.add_argument("--feature-names", type=Path,
+                        default=ROOT / "docs/synthetic_data/synthetic_featurenames.csv")
+    parser.add_argument("--m-list", type=int, nargs="+", default=[2, 3, 4, 5, 6],
+                        help="Candidate category counts, each including reference category 0.")
+    parser.add_argument("--epochs", type=int, default=500)
+    parser.add_argument("--covariate-correct", action="store_true")
+    parser.add_argument("--covariates", nargs="*", default=[],
+                        help="Numeric, nonconstant covariate columns, e.g. Age Sex ICV.")
+    args = parser.parse_args()
+    if args.epochs < 1:
+        parser.error("epochs must be greater than 0.")
+    if any(m < 2 for m in args.m_list) or len(set(args.m_list)) != len(args.m_list):
+        parser.error("m-list must contain distinct category counts of at least 2.")
+    if args.covariate_correct and not args.covariates:
+        parser.error("--covariate-correct requires --covariates.")
+    data_options = dict(
+        featurenames_file=args.feature_names,
+        covariate_correct=args.covariate_correct, covariates=args.covariates,
+        test_fraction=.30)
+    opt = default_options(
+        nfeatures=0, ncategories=args.m_list[0], epochs=args.epochs,
+        DEVICE="cuda" if torch.cuda.is_available() else "cpu")
+    run_stability(opt, args.data_file, args.output, data_options, m_list=args.m_list)
 
-clustering_results={}
-clustering_results['logits'] = clustering_logits   
-with open(os.path.join(opt['path'], f'clustering_results.pkl'), 'wb') as f:
-	pickle.dump(clustering_results, f, protocol=pickle.HIGHEST_PROTOCOL)
+
+if __name__ == "__main__":
+    main()
