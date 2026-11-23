@@ -141,7 +141,7 @@ def main():
     parser.add_argument("--m-list", type=int, nargs="+", default=[2, 3, 4, 5, 6],
                         help="Candidate category counts, each including reference category 0.")
     parser.add_argument("--epochs", type=int, default=500)
-    parser.add_argument("--covariate-correct", action="store_true")
+    parser.add_argument("--covariate-correct", action="store_true", help="Argument enables covariate correction using the specified covariates.")
     parser.add_argument("--covariates", nargs="*", default=[],
                         help="Numeric, nonconstant covariate columns, e.g. Age Sex ICV.")
     args = parser.parse_args()
@@ -163,3 +163,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
