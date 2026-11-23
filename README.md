@@ -39,7 +39,7 @@ label,feature_names
 Run from the repository root. Without arguments, these scripts use the included [synthetic dataset](docs/synthetic_data) containing 2,000 subjects and 145 ROIs, with covariate correction disabled. CUDA is used when available.
 ```bash
 # Compare category counts M = 2, 3, 4, 5, 6
-python scripts/check_cluster_stability_realdata.py
+python scripts/check_cluster_stability.py
 
 # Train with one reference and two target categories
 python scripts/run_CASLVAE_realdata.py
