@@ -24,24 +24,40 @@ subject_id,label,Age,Sex,ROI_1,ROI_2,ROI_3
 sub-001,Background,63,1,3250,6100,4800
 sub-002,Target,74,0,2900,5700,4300
 ```
-
 Reference samples are denoted as **`Background`** label; all other labels are treated as target. Both groups are required. Age, sex, and intracranial volume can be used for optional covariate correction; categorical covariates must be encoded numerically.
+
+Also supply a feature-list CSV where feature_names must match the data columns in the desired input order.
+```csv
+label,feature_names
+1,ROI_1
+2,ROI_2
+3,ROI_3
+```
 
 ## Training
 
-Edit the dataset paths, feature/covariate lists, and output directory in the scripts, then run from the repository root:
-
+Run from the repository root. Without arguments, these scripts use the included [synthetic dataset](docs/synthetic_data) containing 2,000 subjects and 145 ROIs, with covariate correction disabled. CUDA is used when available.
 ```bash
-# Compare category counts using clustering stability
-python scripts/check_cluster_stability_realdata.py
+# Compare category counts M = 2, 3, 4, 5, 6
+python docs/check_cluster_stability_realdata.py
 
-# Train with the selected opt['ncategories']
-python scripts/run_CASLVAE.py
+# Train with one reference and two target categories
+python docs/run_CASLVAE_realdata.py
 ```
 
+Stability results are saved in caslvae_cluster_stability_output/; the trained checkpoint `model_checkpoint.pt`, preprocessing parameters, and monitoring plots are saved in caslvae_training_output/.
+
+To process your own data, supply the data and feature-list CSVs:
+```bash
+python docs/check_cluster_stability_realdata.py --data-file data.csv --feature-names features.csv --m-list 2 3 4 5 --output stability_results
+
+python docs/run_CASLVAE_realdata.py --data-file data.csv --feature-names features.csv --ncategories 3 --output training_results
+'''
+
+For optional covariate correction, append --covariate-correct --covariates Age Sex ICV.
 **`ncategories` includes the reference category:** `3` means one reference and two target categories. Reference is Python index `0`; keep `nLatent_s_cat=1`.
 
-Training saves `model_checkpoint.pt`, preprocessing parameters, and monitoring plots. 
+An optional split column in data file specifies train, validation, or test assignments. Without it, the scripts create splits automatically. Use --help to see available arguments.
 
 ## Inference
 
