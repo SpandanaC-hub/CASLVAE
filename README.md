@@ -66,6 +66,7 @@ The trained model can be used to infer category probabilities, common and salien
 
 See [Example Script](docs/README.md) for model setup, checkpoint loading, and inference. Reuse training preprocessing and feature order for new samples. 
 
+## Experiments
 ### Synthetic example and latent plots
 The [145-ROI notebook](docs/CASLVAE_synthetic_145ROIs.ipynb) generates cross-sectional reference/target data and trains CASLVAE. See the notebook for step by step instruction.
 
