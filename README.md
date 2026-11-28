@@ -69,6 +69,11 @@ See [Example Script](docs/README.md) for model setup, checkpoint loading, and in
 ### Synthetic example and latent plots
 The [145-ROI notebook](docs/CASLVAE_synthetic_145ROIs.ipynb) generates cross-sectional reference/target data and trains CASLVAE. See the notebook for step by step instruction.
 
+### Experiments with Non-neuroimaging datasets 
+The [data preparation notebook](DataPreparation.ipynb) contains scripts for downloading and preprocessing the non-neuroimaging datasets used in the model generalization experiments.
+
+For neuroimaging datasets, due to data access restrictions and the complexity of the processing pipelines, detailed instructions for obtaining and preprocessing the data are provided in the paper.
+
 ## Citation
 
 If you use this code, please cite:
