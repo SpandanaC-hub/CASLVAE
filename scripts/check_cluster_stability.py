@@ -144,6 +144,8 @@ def main():
     parser.add_argument("--covariate-correct", action="store_true", help="Argument enables covariate correction using the specified covariates.")
     parser.add_argument("--covariates", nargs="*", default=[],
                         help="Numeric, nonconstant covariate columns, e.g. Age Sex ICV.")
+    parser.add_argument("--device", type=str, default=None, help="select cpu or cuda")
+
     args = parser.parse_args()
     if args.epochs < 1:
         parser.error("epochs must be greater than 0.")
@@ -151,13 +153,16 @@ def main():
         parser.error("m-list must contain distinct category counts of at least 2.")
     if args.covariate_correct and not args.covariates:
         parser.error("--covariate-correct requires --covariates.")
+    if args.device is None:
+      args.device = "cuda" if torch.cuda.is_available() else "cpu"
+      
     data_options = dict(
         featurenames_file=args.feature_names,
         covariate_correct=args.covariate_correct, covariates=args.covariates,
         test_fraction=.30)
     opt = default_options(
         nfeatures=0, ncategories=args.m_list[0], epochs=args.epochs,
-        DEVICE="cuda" if torch.cuda.is_available() else "cpu")
+        DEVICE=args.device)
     run_stability(opt, args.data_file, args.output, data_options, m_list=args.m_list)
 
 
