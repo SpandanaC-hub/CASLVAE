@@ -259,6 +259,8 @@ def main():
                         help="Numeric, nonconstant covariate columns, e.g. Age Sex ICV.")
     parser.add_argument("--epochs", type=int, default=500)
     parser.add_argument("--max-attempts", type=int, default=3, help="Number of attempts to train model until convergence")
+    parser.add_argument("--device", type=str, default=None, help="select cpu or cuda")
+
     args = parser.parse_args()
     if args.ncategories < 2:
         parser.error("ncategories must be at least 2.")
@@ -273,8 +275,10 @@ def main():
         covariates=args.covariates,
         test_fraction=0.20,
     )
-
-    DEVICE="cuda" if torch.cuda.is_available() else "cpu"
+    if args.device is None:
+      DEVICE="cuda" if torch.cuda.is_available() else "cpu"
+    else:
+      DEVCIE = args.device
 
     run_training(ncategories = args.ncategories, epochs = args.epochs, max_attempts = args.max_attempts,  DEVICE = DEVICE, data_file = args.data_file, output_dir = args.output, data_options=data_options)
 
