@@ -85,11 +85,13 @@ Detailed instructions for neuroimaging data access and preprocessing are provide
 If you use this code, please cite:
 
 ```bibtex
-@misc{chintapalli2026casl,
-  title={CASL-VAE: Learning Structured Latent Variables from Unpaired Data for Semi-supervised Clustering and Paired Sample Generation},
-  author={Chintapalli, Sai Spandana and Chaudhari, Pratik and Davatzikos, Christos},
-  journal={arXiv preprint arXiv:2607.08254},
-  year={2026},
+@inproceedings{
+chintapalli2026caslvae,
+title={{CASL}-{VAE}: Learning Structured Latent Variables from Unpaired Data for Semi-supervised Clustering and Paired Sample Generation},
+author={Sai Spandana Chintapalli and Pratik Chaudhari and Christos Davatzikos},
+booktitle={The Fortieth Annual Conference on Neural Information Processing Systems},
+year={2026},
+url={https://openreview.net/forum?id=j3bc77a6Gn}
 }
 ```
 
